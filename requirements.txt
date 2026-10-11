@@ -53,6 +53,7 @@ pytest-cov>=5.0
 pytest-asyncio>=0.23
 
 # Utilities
+psutil>=5.9
 tqdm>=4.66
 python-json-logger>=2.0
 tabulate>=0.9
