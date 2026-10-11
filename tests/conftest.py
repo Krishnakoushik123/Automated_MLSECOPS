@@ -4,13 +4,19 @@ tests/conftest.py
 Shared pytest fixtures used across unit and integration tests.
 """
 
-import pytest
+import sys
 from pathlib import Path
+import pytest
+
+# Ensure repository root is on sys.path for all runners (Linux CI, Windows, etc.)
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 
 @pytest.fixture(scope="session")
 def project_root():
-    return Path(__file__).resolve().parent.parent
+    return ROOT_DIR
 
 
 @pytest.fixture(scope="session")

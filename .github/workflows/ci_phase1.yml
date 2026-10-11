@@ -8,6 +8,7 @@ on:
 
 env:
   PYTHON_VERSION: "3.11"
+  PYTHONPATH: "."
 
 jobs:
   test:
@@ -26,7 +27,7 @@ jobs:
         run: pip install -r requirements.txt && pip install -e .
 
       - name: Run unit tests
-        run: pytest tests/unit/ -v --tb=short
+        run: python -m pytest tests/unit/ -v --tb=short
 
   pipeline:
     name: Phase 1 Pipeline Smoke Test

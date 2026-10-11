@@ -8,6 +8,7 @@ on:
 
 env:
   PYTHON_VERSION: "3.11"
+  PYTHONPATH: "."
 
 jobs:
   security-and-lint:
@@ -57,7 +58,7 @@ jobs:
 
       - name: Run Unit & Integration Tests
         run: |
-          pytest tests/unit tests/integration -v --tb=short
+          python -m pytest tests/unit tests/integration -v --tb=short
 
       - name: Upload coverage report
         if: always()
@@ -96,7 +97,7 @@ jobs:
 
       - name: Run Acceptance Tests
         run: |
-          pytest tests/acceptance/ -v -o "addopts=" --tb=short
+          python -m pytest tests/acceptance/ -v -o "addopts=" --tb=short
 
   benchmark-and-evaluation:
     name: 3-Way Benchmark & DEA Evaluation
