@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
-import subprocess
+import subprocess  # nosec B404
 import sys
 import time
 from pathlib import Path
@@ -60,7 +60,7 @@ def gate_dependency_audit(config: dict) -> SecurityGateResult:
     max_high = config["security"].get("max_high_vulns", 2)
 
     try:
-        proc = subprocess.run(
+        proc = subprocess.run(  # nosec B603
             [sys.executable, "-m", "pip_audit", "--format", "json", "--progress-spinner", "off"],
             capture_output=True, text=True, timeout=120,
         )
@@ -118,7 +118,7 @@ def gate_secrets_scan(config: dict) -> SecurityGateResult:
     src_dir = "src"
 
     try:
-        proc = subprocess.run(
+        proc = subprocess.run(  # nosec B603
             [
                 sys.executable, "-m", "bandit",
                 "-r", src_dir,

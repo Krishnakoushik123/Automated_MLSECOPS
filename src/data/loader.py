@@ -45,7 +45,7 @@ def load_dataset(config: dict | None = None) -> Tuple[pd.DataFrame, pd.Series]:
     source: str = ds_cfg.get("source", "sklearn")
     seed: int = config["project"]["random_seed"]
 
-    logger.info("Loading dataset â€“ source=%s", source)
+    logger.info("Loading dataset - source=%s", source)
     t0 = time.perf_counter()
 
     if source == "sklearn":
@@ -74,7 +74,7 @@ def generate_dataset_id(file_name: str, file_content: bytes | None = None) -> st
     if file_content is not None and len(file_content) > 0:
         h = hashlib.sha256(file_content).hexdigest()[:8]
     else:
-        h = hashlib.md5(file_name.encode("utf-8")).hexdigest()[:8]
+        h = hashlib.sha256(file_name.encode("utf-8")).hexdigest()[:8]
     return f"ds_{clean_stem}_{h}"
 
 
@@ -221,7 +221,7 @@ if __name__ == "__main__":
     cfg = load_config()
     X, y = load_dataset(cfg)
     path = save_raw(X, y, cfg)
-    print(f"âœ“  Dataset saved to {path}")
+    print(f"[✓] Dataset saved to {path}")
     print(f"   Shape  : {X.shape}")
     print(f"   Classes: {y.value_counts().to_dict()}")
 

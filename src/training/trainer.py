@@ -93,8 +93,8 @@ def build_model(algorithm: str, hyperparams: dict, seed: int, class_weight: str 
             hp.setdefault("random_state", seed)
         if "class_weight" in params and class_weight is not None:
             hp.setdefault("class_weight", class_weight)
-    except Exception:
-        pass
+    except (TypeError, ValueError, AttributeError) as exc:
+        logger.debug("Could not inspect parameters for %s: %s", algorithm, exc)
     return cls(**hp)
 
 

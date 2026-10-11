@@ -296,7 +296,7 @@ def list_experiments(results_dir: str = "results") -> List[Dict[str, Any]]:
                     "r2_score": rm.get("r2_score", 0.0),
                     "security_score": data.get("security", {}).get("overall_score", 0.0),
                 })
-        except Exception:
-            pass
+        except (json.JSONDecodeError, OSError, KeyError, TypeError) as exc:
+            logger.debug("Failed reading experiment summary from %s: %s", exp_file, exc)
     return summaries
 
