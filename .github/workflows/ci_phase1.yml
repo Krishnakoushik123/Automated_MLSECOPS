@@ -24,7 +24,7 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements.txt && pip install -e .
+        run: pip install -r requirements.txt && pip install psutil && pip install -e .
 
       - name: Run unit tests
         run: python -m pytest tests/unit/ -v --tb=short
@@ -43,7 +43,7 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements.txt && pip install -e .
+        run: pip install -r requirements.txt && pip install psutil && pip install -e .
 
       - name: Run Phase 1 pipeline
         run: python -m src.training.pipeline
