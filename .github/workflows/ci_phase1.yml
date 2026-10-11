@@ -21,10 +21,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements.txt && pip install psutil && pip install -e .
+        run: pip install --no-cache-dir -r requirements.txt && pip install --no-cache-dir psutil && pip install -e .
 
       - name: Run unit tests
         run: python -m pytest tests/unit/ -v --tb=short
@@ -40,10 +39,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements.txt && pip install psutil && pip install -e .
+        run: pip install --no-cache-dir -r requirements.txt && pip install --no-cache-dir psutil && pip install -e .
 
       - name: Run Phase 1 pipeline
         run: python -m src.training.pipeline
