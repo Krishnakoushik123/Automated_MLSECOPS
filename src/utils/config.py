@@ -50,6 +50,23 @@ def load_config(config_path: str | None = None) -> Dict[str, Any]:
     return cfg
 
 
+def _coerce(value: str) -> Any:
+    """Coerce a string env-var value to int, float, bool, or leave as str."""
+    if value.lower() in ("true", "yes", "1"):
+        return True
+    if value.lower() in ("false", "no", "0"):
+        return False
+    try:
+        return int(value)
+    except ValueError:
+        pass
+    try:
+        return float(value)
+    except ValueError:
+        pass
+    return value
+
+
 def get_mlflow_uri(config: Dict[str, Any] | None = None) -> str:
     """Return a resolved, platform-safe MLflow tracking URI."""
     if config is None:

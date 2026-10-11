@@ -1,10 +1,12 @@
 # Environment & secrets
 .env
 *.env.local
+*.env.*
 
-# Python
+# Python bytecode & packaging
 __pycache__/
 *.py[cod]
+*$py.class
 *.so
 *.egg
 *.egg-info/
@@ -16,43 +18,60 @@ build/
 venv/
 .venv/
 env/
+ENV/
+
+# Databases
+mlflow.db
+*.db
+*.sqlite
+*.sqlite3
 
 # MLflow
 mlruns/
 mlartifacts/
 
-# Data (large files)
+# Scratch & temporary
+scratch/
+tmp/
+temp/
+
+# Data (large / generated files)
 data/raw/*.parquet
-data/processed/*.npy
-data/processed/*.parquet
+data/processed/*
+!data/processed/.gitkeep
+data/external/*
+!data/external/.gitkeep
 
-# Models
-models/*.joblib
-models/*.pkl
-models/*.pt
-models/*.h5
+# Models (generated artifacts)
+models/*
+!models/.gitkeep
 
-# Results (generated – keep structure, ignore data)
-results/coverage/
-results/csv/*.csv
-results/json/*.json
+# Results (generated runs, experiments, metrics)
+results/*
+!results/.gitkeep
 
 # Pytest / Coverage
 .coverage
+.coverage.*
 htmlcov/
 .pytest_cache/
 
 # Jupyter
 .ipynb_checkpoints/
 
-# IDE
+# IDE & editors
 .idea/
 .vscode/
 *.swp
+*.swo
 
 # Docker
 docker-compose.override.yml
 
-# OS
+# Logs
+*.log
+logs/
+
+# OS generated
 .DS_Store
 Thumbs.db
