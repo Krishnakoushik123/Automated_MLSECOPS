@@ -40,6 +40,7 @@ from src.training.pipeline import run_pipeline
 from src.utils.config import load_config
 from src.utils.experiment_schema import list_experiments, load_experiment_result
 from src.utils.logger import get_logger
+from api.auth import router as auth_router, _create_tables as _create_auth_tables
 
 logger = get_logger(__name__)
 
@@ -48,6 +49,9 @@ app = FastAPI(
     version="1.0.0",
     description="Production ML inference service with runtime security-by-design & anomaly auto-response",
 )
+
+# Mount authentication router (/auth/register, /auth/login, /auth/me, /auth/verify-token)
+app.include_router(auth_router)
 
 # Global model state
 _STATE: Dict[str, Any] = {
@@ -96,6 +100,8 @@ class GroundTruthRequest(BaseModel):
 @app.on_event("startup")
 def load_artifacts():
     """Load configuration, model pipeline, and initialize runtime security detectors."""
+    # Initialize auth database (safe, idempotent — only creates tables if absent)
+    _create_auth_tables()
     cfg = load_config()
     _STATE["config"] = cfg
 

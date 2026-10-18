@@ -6,22 +6,36 @@ from typing import Dict, Any, List, Optional
 class APIClient:
     def __init__(self, base_url: str = None):
         self.base_url = base_url or os.getenv("API_URL", "http://localhost:8000")
+        self._token: Optional[str] = None  # JWT set after login
+
+    def set_token(self, token: str) -> None:
+        """Store the JWT received after login/register."""
+        self._token = token
+
+    def clear_token(self) -> None:
+        """Clear the stored token (logout)."""
+        self._token = None
+
+    def _auth_headers(self) -> Dict[str, str]:
+        if self._token:
+            return {"Authorization": f"Bearer {self._token}"}
+        return {}
         
     def _get(self, endpoint: str) -> Optional[Any]:
         try:
-            response = requests.get(f"{self.base_url}{endpoint}", timeout=10)
+            response = requests.get(f"{self.base_url}{endpoint}", headers=self._auth_headers(), timeout=10)
             response.raise_for_status()
             return response.json()
         except Exception as e:
             print(f"APIClient GET {endpoint} Error: {e}")
             return None
-            
+
     def _post(self, endpoint: str, data: Dict = None, files: Dict = None) -> Optional[Any]:
         try:
             if files:
-                response = requests.post(f"{self.base_url}{endpoint}", files=files, timeout=30)
+                response = requests.post(f"{self.base_url}{endpoint}", files=files, headers=self._auth_headers(), timeout=30)
             else:
-                response = requests.post(f"{self.base_url}{endpoint}", json=data, timeout=30)
+                response = requests.post(f"{self.base_url}{endpoint}", json=data, headers=self._auth_headers(), timeout=30)
             response.raise_for_status()
             return response.json()
         except Exception as e:
@@ -75,3 +89,62 @@ class APIClient:
 
     def submit_ground_truth(self, indices: list, labels: list) -> Optional[Dict[str, Any]]:
         return self._post("/monitoring/ground_truth", data={"prediction_indices": indices, "ground_truth": labels})
+
+    # ── Auth endpoints ────────────────────────────────────────────────────────
+
+    def register(self, email: str, password: str, full_name: str = None) -> Optional[Dict[str, Any]]:
+        """Register a new user. Returns token payload or None on failure."""
+        try:
+            payload = {"email": email, "password": password}
+            if full_name:
+                payload["full_name"] = full_name
+            response = requests.post(
+                f"{self.base_url}/auth/register", json=payload, timeout=10
+            )
+            if response.status_code == 409:
+                return {"error": "Email already registered"}
+            response.raise_for_status()
+            data = response.json()
+            if "access_token" in data:
+                self.set_token(data["access_token"])
+            return data
+        except Exception as e:
+            print(f"APIClient register error: {e}")
+            return None
+
+    def login(self, email: str, password: str) -> Optional[Dict[str, Any]]:
+        """Login with email+password. Returns token payload or None on failure."""
+        try:
+            response = requests.post(
+                f"{self.base_url}/auth/login",
+                json={"email": email, "password": password},
+                timeout=10,
+            )
+            if response.status_code == 401:
+                return {"error": "Invalid email or password"}
+            response.raise_for_status()
+            data = response.json()
+            if "access_token" in data:
+                self.set_token(data["access_token"])
+            return data
+        except Exception as e:
+            print(f"APIClient login error: {e}")
+            return None
+
+    def get_me(self) -> Optional[Dict[str, Any]]:
+        """Fetch the authenticated user's profile."""
+        return self._get("/auth/me")
+
+    def verify_stored_token(self) -> bool:
+        """Verify the stored token is still valid. Returns True if valid."""
+        if not self._token:
+            return False
+        try:
+            response = requests.post(
+                f"{self.base_url}/auth/verify-token",
+                headers={"Authorization": f"Bearer {self._token}"},
+                timeout=5,
+            )
+            return response.status_code == 200 and response.json().get("valid", False)
+        except Exception:
+            return False
