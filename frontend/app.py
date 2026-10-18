@@ -227,104 +227,9 @@ if "_api" not in st.session_state:
     st.session_state["_api"] = APIClient()
 api = st.session_state["_api"]
 
-# ── Auth CSS (login page styles + zoom-in transition) ────────────────────────
+# ── Auth & User Badge CSS ─────────────────────────────────────────────────────
 st.markdown("""
 <style>
-    /* ── Login overlay ─────────────────────────────────────────── */
-    .auth-overlay {
-        position: fixed;
-        inset: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: #0B0F19;
-        z-index: 9999;
-    }
-
-    @keyframes loginCardIn {
-        0%   { opacity: 0; transform: scale(0.88) translateY(24px); }
-        60%  { opacity: 1; transform: scale(1.02) translateY(-4px); }
-        100% { opacity: 1; transform: scale(1)   translateY(0);     }
-    }
-
-    @keyframes loginCardOut {
-        0%   { opacity: 1; transform: scale(1);    }
-        100% { opacity: 0; transform: scale(1.08); }
-    }
-
-    .auth-card {
-        background: rgba(30, 41, 59, 0.85);
-        backdrop-filter: blur(20px);
-        border: 1px solid rgba(99, 102, 241, 0.3);
-        border-radius: 20px;
-        padding: 48px 44px 40px;
-        width: 100%;
-        max-width: 420px;
-        box-shadow:
-            0 0 0 1px rgba(99,102,241,0.1),
-            0 25px 60px rgba(0,0,0,0.5),
-            0 0 80px rgba(99,102,241,0.08);
-        animation: loginCardIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-    }
-
-    .auth-logo {
-        font-size: 40px;
-        text-align: center;
-        margin-bottom: 6px;
-        filter: drop-shadow(0 0 16px rgba(99,102,241,0.5));
-    }
-
-    .auth-title {
-        text-align: center;
-        font-size: 22px;
-        font-weight: 700;
-        color: #F8FAFC;
-        margin-bottom: 4px;
-        letter-spacing: -0.02em;
-    }
-
-    .auth-subtitle {
-        text-align: center;
-        font-size: 13px;
-        color: #64748B;
-        margin-bottom: 32px;
-    }
-
-    .auth-field-label {
-        font-size: 13px;
-        font-weight: 600;
-        color: #94A3B8;
-        margin-bottom: 6px;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-    }
-
-    .auth-divider {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin: 20px 0;
-        color: #334155;
-        font-size: 12px;
-    }
-
-    .auth-divider::before,
-    .auth-divider::after {
-        content: '';
-        flex: 1;
-        height: 1px;
-        background: #1E293B;
-    }
-
-    /* Welcome-back transition (applied when auth succeeded) */
-    @keyframes zoomDashboard {
-        0%   { opacity: 0; transform: scale(0.96); }
-        100% { opacity: 1; transform: scale(1);    }
-    }
-    .dashboard-enter {
-        animation: zoomDashboard 0.4s ease both;
-    }
-
     /* User badge in sidebar */
     .user-badge {
         background: rgba(99,102,241,0.12);
@@ -436,66 +341,87 @@ _is_authenticated = bool(st.session_state.get("auth_token"))
 if not _is_authenticated:
     # ── Render the login / register card ──────────────────────────────────
     st.markdown("""
-    <div class="auth-overlay">
-      <div class="auth-card">
-        <div class="auth-logo">🛡️</div>
-        <div class="auth-title">Automated MLSecOps</div>
-        <div class="auth-subtitle">Sign in to your workspace</div>
-      </div>
-    </div>
+    <style>
+        [data-testid="stSidebar"], [data-testid="collapsedControl"] {
+            display: none !important;
+        }
+        .auth-header {
+            text-align: center;
+            padding: 3rem 0 1.5rem 0;
+        }
+        .auth-logo {
+            font-size: 48px;
+            filter: drop-shadow(0 0 16px rgba(99,102,241,0.5));
+            margin-bottom: 8px;
+        }
+        .auth-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #F8FAFC;
+            margin: 0 0 6px 0;
+            letter-spacing: -0.02em;
+        }
+        .auth-subtitle {
+            font-size: 14px;
+            color: #94A3B8;
+            margin: 0;
+        }
+    </style>
     """, unsafe_allow_html=True)
 
     # Centered column to match the card width
     _, center_col, _ = st.columns([1, 1.4, 1])
     with center_col:
-        st.markdown("<div style='height:160px'></div>", unsafe_allow_html=True)
-        tab_login, tab_register = st.tabs(["Sign In", "Create Account"])
+        st.markdown("""
+        <div class="auth-header">
+            <div class="auth-logo">🛡️</div>
+            <div class="auth-title">Automated MLSecOps</div>
+            <div class="auth-subtitle">Sign in to your workspace</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        tab_login, tab_register = st.tabs(["🔐 Sign In", "✨ Create Account"])
 
         with tab_login:
-            login_email    = st.text_input("Email address",     key="li_email",    placeholder="you@example.com")
-            login_password = st.text_input("Password",          key="li_password", type="password", placeholder="••••••••")
-            if "_login_error" in st.session_state:
-                st.error(st.session_state.pop("_login_error"))
-            if st.button("Sign In", key="btn_login", use_container_width=True, type="primary"):
-                if not login_email or not login_password:
-                    st.error("Please fill in both fields.")
-                else:
-                    with st.spinner("Authenticating..."):
-                        ok, err = _do_login(login_email.strip(), login_password)
-                    if ok:
-                        st.rerun()
+            with st.form("form_login", clear_on_submit=False):
+                login_email    = st.text_input("Email address",     key="li_email",    placeholder="you@example.com")
+                login_password = st.text_input("Password",          key="li_password", type="password", placeholder="••••••••")
+                submit_login   = st.form_submit_button("Sign In",   use_container_width=True, type="primary")
+
+                if submit_login:
+                    if not login_email or not login_password:
+                        st.error("Please fill in both fields.")
                     else:
-                        st.session_state["_login_error"] = err
-                        st.rerun()
+                        with st.spinner("Authenticating..."):
+                            ok, err = _do_login(login_email.strip(), login_password)
+                        if ok:
+                            st.rerun()
+                        else:
+                            st.error(err or "Login failed.")
 
         with tab_register:
-            reg_name     = st.text_input("Full Name (optional)", key="reg_name",  placeholder="Jane Smith")
-            reg_email    = st.text_input("Email address",        key="reg_email",  placeholder="you@example.com")
-            reg_password = st.text_input("Password (min 8 chars)", key="reg_pw",  type="password", placeholder="••••••••")
-            reg_confirm  = st.text_input("Confirm Password",     key="reg_pw2",   type="password", placeholder="••••••••")
-            if "_reg_error" in st.session_state:
-                st.error(st.session_state.pop("_reg_error"))
-            if st.button("Create Account", key="btn_register", use_container_width=True, type="primary"):
-                if not reg_email or not reg_password:
-                    st.error("Email and password are required.")
-                elif len(reg_password) < 8:
-                    st.error("Password must be at least 8 characters.")
-                elif reg_password != reg_confirm:
-                    st.error("Passwords do not match.")
-                else:
-                    with st.spinner("Creating account..."):
-                        ok, err = _do_register(reg_email.strip(), reg_password, reg_name.strip())
-                    if ok:
-                        st.rerun()
-                    else:
-                        st.session_state["_reg_error"] = err
-                        st.rerun()
-    st.stop()  # Nothing below this renders if not authenticated
+            with st.form("form_register", clear_on_submit=False):
+                reg_name     = st.text_input("Full Name (optional)", key="reg_name",  placeholder="Jane Smith")
+                reg_email    = st.text_input("Email address",        key="reg_email",  placeholder="you@example.com")
+                reg_password = st.text_input("Password (min 8 chars)", key="reg_pw",  type="password", placeholder="••••••••")
+                reg_confirm  = st.text_input("Confirm Password",     key="reg_pw2",   type="password", placeholder="••••••••")
+                submit_reg   = st.form_submit_button("Create Account", use_container_width=True, type="primary")
 
-# Apply the zoom-in-on-first-load animation (only once per login)
-if st.session_state.get("_first_load_after_login", True):
-    st.markdown('<div class="dashboard-enter">', unsafe_allow_html=True)
-    st.session_state["_first_load_after_login"] = False
+                if submit_reg:
+                    if not reg_email or not reg_password:
+                        st.error("Email and password are required.")
+                    elif len(reg_password) < 8:
+                        st.error("Password must be at least 8 characters.")
+                    elif reg_password != reg_confirm:
+                        st.error("Passwords do not match.")
+                    else:
+                        with st.spinner("Creating account..."):
+                            ok, err = _do_register(reg_email.strip(), reg_password, reg_name.strip())
+                        if ok:
+                            st.rerun()
+                        else:
+                            st.error(err or "Registration failed.")
+    st.stop()  # Nothing below this renders if not authenticated
 
 # ─────────────────────────────────────────────────────────────────────────────
 # --- Sidebar ---

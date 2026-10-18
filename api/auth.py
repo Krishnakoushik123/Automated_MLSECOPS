@@ -137,9 +137,17 @@ def _decode_token(token: str) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class RegisterRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str
     full_name: Optional[str] = None
+
+    @field_validator("email")
+    @classmethod
+    def _validate_email(cls, v: str) -> str:
+        v = v.strip().lower()
+        if "@" not in v or len(v.split("@")[0]) == 0 or len(v.split("@")[1]) == 0:
+            raise ValueError("Invalid email address format")
+        return v
 
     @field_validator("password")
     @classmethod
@@ -150,8 +158,13 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: str
     password: str
+
+    @field_validator("email")
+    @classmethod
+    def _validate_email(cls, v: str) -> str:
+        return v.strip().lower()
 
 
 class TokenResponse(BaseModel):

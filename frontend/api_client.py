@@ -93,7 +93,7 @@ class APIClient:
     # ── Auth endpoints ────────────────────────────────────────────────────────
 
     def register(self, email: str, password: str, full_name: str = None) -> Optional[Dict[str, Any]]:
-        """Register a new user. Returns token payload or None on failure."""
+        """Register a new user. Returns token payload or error dict."""
         try:
             payload = {"email": email, "password": password}
             if full_name:
@@ -103,7 +103,15 @@ class APIClient:
             )
             if response.status_code == 409:
                 return {"error": "Email already registered"}
-            response.raise_for_status()
+            if not response.ok:
+                try:
+                    err_json = response.json()
+                    detail = err_json.get("detail")
+                    if isinstance(detail, list) and len(detail) > 0:
+                        detail = detail[0].get("msg", str(detail))
+                    return {"error": detail or f"Registration failed ({response.status_code})"}
+                except Exception:
+                    return {"error": f"Registration failed ({response.status_code})"}
             data = response.json()
             if "access_token" in data:
                 self.set_token(data["access_token"])
@@ -113,7 +121,7 @@ class APIClient:
             return None
 
     def login(self, email: str, password: str) -> Optional[Dict[str, Any]]:
-        """Login with email+password. Returns token payload or None on failure."""
+        """Login with email+password. Returns token payload or error dict."""
         try:
             response = requests.post(
                 f"{self.base_url}/auth/login",
@@ -122,7 +130,15 @@ class APIClient:
             )
             if response.status_code == 401:
                 return {"error": "Invalid email or password"}
-            response.raise_for_status()
+            if not response.ok:
+                try:
+                    err_json = response.json()
+                    detail = err_json.get("detail")
+                    if isinstance(detail, list) and len(detail) > 0:
+                        detail = detail[0].get("msg", str(detail))
+                    return {"error": detail or f"Login failed ({response.status_code})"}
+                except Exception:
+                    return {"error": f"Login failed ({response.status_code})"}
             data = response.json()
             if "access_token" in data:
                 self.set_token(data["access_token"])
