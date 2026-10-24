@@ -68,3 +68,9 @@ rich>=13.7
 # Frontend
 streamlit>=1.35
 plotly>=5.22
+
+# Image Analysis (Optional)
+Pillow>=10.0
+torch>=2.0
+torchvision>=0.15
+

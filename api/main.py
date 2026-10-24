@@ -515,6 +515,293 @@ def run_experiment(background_tasks: BackgroundTasks, req: RunPipelineRequest = 
     return {"experiment_id": experiment_id, "status": "QUEUED", "stage": "Upload"}
 
 
+# ---------------------------------------------------------------------------
+# Unsupervised Learning Endpoint
+# ---------------------------------------------------------------------------
+
+class RunUnsupervisedRequest(BaseModel):
+    algorithm: str = "kmeans"
+    task_type: str = "clustering"          # clustering | anomaly_detection | dimensionality_reduction
+    target_column: Optional[str] = None    # optional ground-truth column
+    hyperparams: Optional[Dict[str, Any]] = {}
+
+
+@app.post("/experiments/run/unsupervised", tags=["Experiments"])
+async def run_unsupervised_experiment(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    algorithm: str = "kmeans",
+    task_type: str = "clustering",
+    target_column: Optional[str] = None,
+    n_clusters: int = 3,
+    eps: float = 0.5,
+    min_samples: int = 5,
+    contamination: float = 0.1,
+    n_components: int = 5,
+):
+    """
+    Run an unsupervised ML task (clustering, anomaly detection, or PCA) on an uploaded tabular dataset.
+    Supports KMeans, DBSCAN, IsolationForest, and PCA.
+    Target column is optional; when provided, supervised-style metrics are computed for comparison.
+    """
+    from src.training.unsupervised import train_unsupervised, validate_unsupervised_inputs, UNSUPERVISED_ALGORITHMS
+    from src.features.preprocessing import build_feature_pipeline
+
+    ALLOWED_EXTS = {".csv", ".xlsx", ".xls", ".json", ".parquet"}
+    ext = Path(file.filename).suffix.lower()
+    if ext not in ALLOWED_EXTS:
+        raise HTTPException(status_code=400, detail=f"Unsupported format '{ext}'. Use CSV, Excel, JSON, or Parquet.")
+
+    if algorithm not in UNSUPERVISED_ALGORITHMS:
+        raise HTTPException(status_code=400, detail=f"Unknown algorithm '{algorithm}'. Supported: {list(UNSUPERVISED_ALGORITHMS.keys())}")
+
+    content = await file.read()
+    if len(content) == 0:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+    # Parse file
+    try:
+        import io as _io
+        if ext == ".csv":
+            df = pd.read_csv(_io.BytesIO(content))
+        elif ext in [".xlsx", ".xls"]:
+            df = pd.read_excel(_io.BytesIO(content))
+        elif ext == ".json":
+            df = pd.read_json(_io.BytesIO(content))
+        else:
+            df = pd.read_parquet(_io.BytesIO(content))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to parse dataset: {e}")
+
+    # Extract ground-truth if specified
+    y_true = None
+    if target_column and target_column in df.columns:
+        y_raw = df.pop(target_column)
+        if y_raw.notnull().any():
+            try:
+                from sklearn.preprocessing import LabelEncoder
+                le = LabelEncoder()
+                y_true = le.fit_transform(y_raw.fillna("__missing__").astype(str))
+            except Exception as e:
+                logger.warning("Could not encode target column: %s", e)
+
+    # Preprocess features
+    try:
+        cat_cols = df.select_dtypes(include=["object", "category", "bool"]).columns.tolist()
+        if cat_cols:
+            df = pd.get_dummies(df, columns=cat_cols, drop_first=True, dtype=float)
+        for col in df.columns:
+            if not np.issubdtype(df[col].dtype, np.number):
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        from sklearn.impute import SimpleImputer
+        from sklearn.preprocessing import StandardScaler
+        X_raw = df.values.astype(float)
+        imputer = SimpleImputer(strategy="median")
+        X_imputed = imputer.fit_transform(X_raw)
+        scaler = StandardScaler()
+        X = scaler.fit_transform(X_imputed)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Preprocessing failed: {e}")
+
+    # Build hyperparams dict
+    hyperparams: Dict[str, Any] = {}
+    if algorithm == "kmeans":
+        hyperparams["n_clusters"] = n_clusters
+    elif algorithm == "dbscan":
+        hyperparams["eps"] = eps
+        hyperparams["min_samples"] = min_samples
+    elif algorithm == "isolation_forest":
+        hyperparams["contamination"] = min(0.5, max(0.01, contamination))
+    elif algorithm == "pca_analysis":
+        hyperparams["n_components"] = n_components
+
+    # Validate inputs
+    is_valid, val_errors = validate_unsupervised_inputs(X, algorithm, hyperparams)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail="; ".join(val_errors))
+
+    experiment_id = f"unsup_{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+
+    def _run_unsup():
+        try:
+            cfg = load_config()
+            models_dir = Path(cfg["paths"]["models"])
+            seed = cfg["project"]["random_seed"]
+            result = train_unsupervised(
+                algorithm=algorithm,
+                X=X,
+                y_true=y_true,
+                hyperparams=hyperparams,
+                models_dir=models_dir,
+                seed=seed,
+            )
+            _RUNNING_EXPERIMENTS[experiment_id]["status"] = "COMPLETED"
+            _RUNNING_EXPERIMENTS[experiment_id]["result"] = result
+        except Exception as exc:
+            logger.error("Unsupervised experiment failed: %s", exc, exc_info=True)
+            _RUNNING_EXPERIMENTS[experiment_id]["status"] = "FAILED"
+            _RUNNING_EXPERIMENTS[experiment_id]["error"] = str(exc)
+
+    _RUNNING_EXPERIMENTS[experiment_id] = {
+        "status": "QUEUED",
+        "stage": "Unsupervised Training",
+        "stage_details": f"Running {algorithm} on {len(X)} samples",
+        "start_time": time.time(),
+        "error": None,
+        "type": "unsupervised",
+        "algorithm": algorithm,
+        "n_samples": len(X),
+        "n_features": X.shape[1],
+    }
+
+    background_tasks.add_task(_run_unsup)
+    return {
+        "experiment_id": experiment_id,
+        "status": "QUEUED",
+        "algorithm": algorithm,
+        "task_type": task_type,
+        "n_samples": len(X),
+        "n_features": X.shape[1],
+        "has_ground_truth": y_true is not None,
+    }
+
+
+@app.get("/experiments/unsupervised/{experiment_id}", tags=["Experiments"])
+def get_unsupervised_experiment(experiment_id: str):
+    """Get the status and results of an unsupervised experiment."""
+    if experiment_id not in _RUNNING_EXPERIMENTS:
+        raise HTTPException(status_code=404, detail="Unsupervised experiment not found.")
+    info = _RUNNING_EXPERIMENTS[experiment_id]
+    response = {
+        "experiment_id": experiment_id,
+        "status": info["status"],
+        "algorithm": info.get("algorithm", "unknown"),
+        "type": info.get("type", "unsupervised"),
+    }
+    if info["status"] == "COMPLETED" and "result" in info:
+        response["result"] = info["result"]
+    elif info["status"] == "FAILED":
+        response["error"] = info.get("error", "Unknown error")
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Image Pipeline Endpoint
+# ---------------------------------------------------------------------------
+
+@app.post("/experiments/run/image", tags=["Experiments"])
+async def run_image_experiment(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    task: str = "image_classification",
+    n_clusters: int = 5,
+    contamination: float = 0.05,
+    max_images: int = 1000,
+):
+    """
+    Run an image ML pipeline on an uploaded ZIP archive.
+    Tasks: image_classification, image_clustering, image_anomaly_detection.
+    ZIP must contain images in class-folder structure (class_name/image.jpg).
+    Requires optional dependencies: pip install Pillow torch torchvision
+    """
+    from src.image.validator import validate_image_zip
+
+    VALID_TASKS = {"image_classification", "image_clustering", "image_anomaly_detection"}
+    if task not in VALID_TASKS:
+        raise HTTPException(status_code=400, detail=f"Unknown task '{task}'. Use: {', '.join(VALID_TASKS)}")
+
+    if Path(file.filename).suffix.lower() != ".zip":
+        raise HTTPException(status_code=400, detail="Image pipeline requires a .zip archive.")
+
+    content = await file.read()
+    if len(content) == 0:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+    # Quick validation before queueing
+    is_valid, val_errors, zip_info = validate_image_zip(content)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail="; ".join(val_errors))
+
+    experiment_id = f"img_{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+
+    hyperparams = {
+        "n_clusters": n_clusters,
+        "contamination": min(0.5, max(0.01, contamination)),
+        "max_images": max_images,
+    }
+
+    def _run_image():
+        try:
+            from src.image.pipeline import run_image_pipeline
+            cfg = load_config()
+            models_dir = Path(cfg["paths"]["models"])
+            seed = cfg["project"]["random_seed"]
+            result = run_image_pipeline(
+                zip_bytes=content,
+                task=task,
+                hyperparams=hyperparams,
+                models_dir=models_dir,
+                seed=seed,
+            )
+            if result.get("status") == "error":
+                _RUNNING_EXPERIMENTS[experiment_id]["status"] = "FAILED"
+                _RUNNING_EXPERIMENTS[experiment_id]["error"] = result.get("error", "Image pipeline error")
+            else:
+                _RUNNING_EXPERIMENTS[experiment_id]["status"] = "COMPLETED"
+                _RUNNING_EXPERIMENTS[experiment_id]["result"] = result
+        except Exception as exc:
+            logger.error("Image experiment failed: %s", exc, exc_info=True)
+            _RUNNING_EXPERIMENTS[experiment_id]["status"] = "FAILED"
+            _RUNNING_EXPERIMENTS[experiment_id]["error"] = str(exc)
+
+    _RUNNING_EXPERIMENTS[experiment_id] = {
+        "status": "QUEUED",
+        "stage": "Image Processing",
+        "stage_details": f"Embedding and training {task}",
+        "start_time": time.time(),
+        "error": None,
+        "type": "image",
+        "task": task,
+        "zip_info": zip_info,
+    }
+
+    background_tasks.add_task(_run_image)
+    return {
+        "experiment_id": experiment_id,
+        "status": "QUEUED",
+        "task": task,
+        "zip_info": zip_info,
+        "message": (
+            "Image pipeline queued. If torch/torchvision are not installed, "
+            "the pipeline will return an error with installation instructions."
+        ),
+    }
+
+
+@app.get("/experiments/image/{experiment_id}", tags=["Experiments"])
+def get_image_experiment(experiment_id: str):
+    """Get the status and results of an image experiment."""
+    if experiment_id not in _RUNNING_EXPERIMENTS:
+        raise HTTPException(status_code=404, detail="Image experiment not found.")
+    info = _RUNNING_EXPERIMENTS[experiment_id]
+    response = {
+        "experiment_id": experiment_id,
+        "status": info["status"],
+        "task": info.get("task", "unknown"),
+        "type": info.get("type", "image"),
+    }
+    if info["status"] == "COMPLETED" and "result" in info:
+        result = dict(info["result"])
+        # Strip heavy numpy arrays from response
+        result.pop("X_transformed", None)
+        response["result"] = result
+    elif info["status"] == "FAILED":
+        response["error"] = info.get("error", "Unknown error")
+    return response
+
+
+
 @app.get("/experiments", tags=["Experiments"])
 def get_experiments():
     """List all completed experiments."""

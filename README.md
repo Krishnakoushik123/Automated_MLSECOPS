@@ -48,17 +48,18 @@ DATA → VALIDATION → FEATURE PIPELINE → TRAINING → SECURITY GATES
 
 | Layer | Technology |
 |---|---|
-| ML Framework | scikit-learn (LogReg, RF, GBM) |
+| ML Framework | scikit-learn (LogReg, RF, GBM, KMeans, DBSCAN, IsolationForest, PCA) |
+| Image Analysis | MobileNetV3-Small (PyTorch, Torchvision, Pillow) |
 | Experiment Tracking | MLflow (SQLite backend) |
 | Schema Validation | Pandera |
 | Security Scanning | Bandit, pip-audit, FGSM, SHA-256 |
 | Drift Monitoring | Custom PSI/JS-divergence |
-| Anomaly Detection | IQR-based Out-of-Distribution |
+| Anomaly Detection | IQR-based Out-of-Distribution, Isolation Forest |
 | API | FastAPI + Uvicorn |
 | Metrics Export | Prometheus-compatible `/metrics` |
 | Containers | Docker + Docker Compose |
 | CI/CD | GitHub Actions (3-job pipeline) |
-| Testing | Pytest (49 unit + integration tests) |
+| Testing | Pytest (58+ unit + integration tests) |
 | DEA Evaluation | Charnes-Cooper LP (scipy.optimize) |
 
 ---
@@ -75,10 +76,15 @@ automated-mlsecops/
 │   │   └── preprocessing.py # build_pipeline(), split_dataset(), fit_transform_splits()
 │   ├── training/       # Model training, CV, threshold optimization, registry
 │   │   ├── trainer.py  # train_model(), train_all(), build_model(), compute_metrics()
+│   │   ├── unsupervised.py # KMeans, DBSCAN, IsolationForest, PCA with evaluation metrics
 │   │   ├── pipeline.py # run_pipeline() — full end-to-end orchestrator
 │   │   └── registry.py # MLflow model registry operations
+│   ├── image/          # Image ML pipeline & validation
+│   │   ├── validator.py # ZIP structure, file format, decompression bomb & traversal checks
+│   │   └── pipeline.py  # MobileNetV3 feature extractor, classification, clustering, anomaly detection
 │   ├── security/       # 5 Security Gates
 │   │   └── gates.py    # dependency_audit, secrets_scan, data_integrity,
+
 │   │                   # adversarial_robustness (FGSM), model_integrity (SHA-256)
 │   ├── monitoring/     # Runtime monitoring & auto-response
 │   │   ├── drift_detector.py    # PSI-based feature drift detection

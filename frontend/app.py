@@ -441,7 +441,7 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-    page = st.radio("Navigation", ["Dashboard", "New Experiment", "Results", "Monitoring"], label_visibility="collapsed")
+    page = st.radio("Navigation", ["Dashboard", "New Experiment", "Unsupervised Learning", "Image Analysis", "Results", "Monitoring"], label_visibility="collapsed")
     st.markdown("---")
 
     if st.button("🔄 Check API Status", use_container_width=True):
@@ -625,8 +625,226 @@ elif page == "New Experiment":
             status_placeholder.info(f"⏳ **Active Stage: {stage}** — {stage_details or 'Executing MLSecOps pipeline...'}")
             time.sleep(2.0)
 
+# --- Unsupervised Learning ---
+elif page == "Unsupervised Learning":
+    st.title("🔬 Unsupervised Learning")
+    st.markdown("Apply clustering, anomaly detection, or dimensionality reduction to tabular datasets without requiring labelled targets.")
+
+    with st.container():
+        st.markdown("### 1. Upload Dataset")
+        up_file = st.file_uploader("Select tabular dataset", type=["csv", "xlsx", "xls", "json", "parquet"], key="unsup_upload")
+
+        if up_file:
+            try:
+                ext_u = up_file.name.split(".")[-1].lower()
+                if ext_u == "csv": df_unsup = pd.read_csv(up_file)
+                elif ext_u in ["xlsx", "xls"]: df_unsup = pd.read_excel(up_file)
+                elif ext_u == "json": df_unsup = pd.read_json(up_file)
+                else: df_unsup = pd.read_parquet(up_file)
+
+                st.success(f"Loaded '{up_file.name}' — {df_unsup.shape[0]} rows x {df_unsup.shape[1]} columns")
+                st.dataframe(df_unsup.head(5), use_container_width=True)
+
+                st.markdown("### 2. Configure Task")
+                u_c1, u_c2 = st.columns(2)
+
+                with u_c1:
+                    task_cat = st.selectbox("Task", [
+                        "Clustering (KMeans)", "Clustering (DBSCAN)",
+                        "Anomaly Detection (IsolationForest)", "Dimensionality Reduction (PCA)",
+                    ], key="unsup_task")
+                    algo_map_u = {
+                        "Clustering (KMeans)": "kmeans",
+                        "Clustering (DBSCAN)": "dbscan",
+                        "Anomaly Detection (IsolationForest)": "isolation_forest",
+                        "Dimensionality Reduction (PCA)": "pca_analysis",
+                    }
+                    chosen_algo = algo_map_u[task_cat]
+                    gt_col = st.selectbox("Ground-Truth Column (optional — for comparison only)",
+                                          ["— none —"] + df_unsup.columns.tolist(), key="unsup_gt")
+                    target_col_param = None if gt_col == "— none —" else gt_col
+
+                with u_c2:
+                    u_n_clusters, u_eps, u_min_samp, u_cont, u_n_comp = 3, 0.5, 5, 0.1, 5
+                    if chosen_algo == "kmeans":
+                        u_n_clusters = st.slider("K (clusters)", 2, 20, 3, key="unsup_k")
+                    elif chosen_algo == "dbscan":
+                        u_eps = st.slider("eps", 0.1, 5.0, 0.5, 0.1, key="unsup_eps")
+                        u_min_samp = st.slider("min_samples", 2, 20, 5, key="unsup_ms")
+                    elif chosen_algo == "isolation_forest":
+                        u_cont = st.slider("Contamination", 0.01, 0.5, 0.1, 0.01, key="unsup_cont")
+                    else:
+                        u_n_comp = st.slider("PCA Components", 1, min(df_unsup.shape[1], 20), min(5, df_unsup.shape[1]), key="unsup_pca")
+
+                if st.button("Run Unsupervised Analysis", type="primary", use_container_width=True, key="unsup_run_btn"):
+                    with st.spinner("Submitting..."):
+                        up_file.seek(0)
+                        try:
+                            import requests as _req
+                            params_u = {
+                                "algorithm": chosen_algo,
+                                "task_type": task_cat.split("(")[0].strip().lower().replace(" ", "_"),
+                                "n_clusters": u_n_clusters, "eps": u_eps, "min_samples": u_min_samp,
+                                "contamination": u_cont, "n_components": u_n_comp,
+                            }
+                            if target_col_param:
+                                params_u["target_column"] = target_col_param
+                            files_u = {"file": (up_file.name, up_file.getvalue(), "application/octet-stream")}
+                            resp_u = _req.post(f"{api.base_url}/experiments/run/unsupervised",
+                                               files=files_u, params=params_u, headers=api._auth_headers(), timeout=60)
+                            if resp_u.ok:
+                                st.session_state["unsup_exp_id"] = resp_u.json()["experiment_id"]
+                                st.rerun()
+                            else:
+                                st.error(f"Error: {resp_u.json().get('detail', resp_u.text)}")
+                        except Exception as e:
+                            st.error(f"Request failed: {e}")
+            except Exception as e:
+                st.error(f"Error reading file: {e}")
+
+    if "unsup_exp_id" in st.session_state:
+        u_exp_id = st.session_state["unsup_exp_id"]
+        st.markdown(f"---\n### Results: `{u_exp_id}`")
+        import requests as _req_u, time as _time_u
+        for _attempt in range(60):
+            try:
+                r_u = _req_u.get(f"{api.base_url}/experiments/unsupervised/{u_exp_id}", headers=api._auth_headers(), timeout=10)
+                if r_u.ok:
+                    d_u = r_u.json()
+                    u_status = d_u.get("status")
+                    if u_status == "COMPLETED":
+                        st.success("Analysis complete!")
+                        u_result = d_u.get("result", {})
+                        u_metrics = u_result.get("metrics", {})
+                        um_c1, um_c2, um_c3, um_c4 = st.columns(4)
+                        if "silhouette_score" in u_metrics and u_metrics["silhouette_score"] is not None:
+                            um_c1.metric("Silhouette Score", f"{u_metrics['silhouette_score']:.4f}")
+                        if "davies_bouldin_score" in u_metrics and u_metrics["davies_bouldin_score"] is not None:
+                            um_c2.metric("Davies-Bouldin", f"{u_metrics['davies_bouldin_score']:.4f}")
+                        if "n_clusters_found" in u_metrics:
+                            um_c3.metric("Clusters Found", u_metrics["n_clusters_found"])
+                        if "anomaly_rate" in u_metrics:
+                            um_c1.metric("Anomaly Rate", f"{u_metrics['anomaly_rate']:.2%}")
+                        if "total_explained_variance" in u_metrics:
+                            um_c1.metric("Explained Variance", f"{u_metrics['total_explained_variance']:.3f}")
+                        if "supervised_f1" in u_metrics:
+                            st.markdown("#### Supervised Comparison")
+                            sc1, sc2, sc3 = st.columns(3)
+                            sc1.metric("F1 (mapped labels)", f"{u_metrics.get('supervised_f1', 0):.4f}")
+                            sc2.metric("Precision", f"{u_metrics.get('supervised_precision', 0):.4f}")
+                            sc3.metric("Recall", f"{u_metrics.get('supervised_recall', 0):.4f}")
+                            st.caption(u_metrics.get("supervised_metrics_note", ""))
+                        if "explained_variance_ratio" in u_metrics:
+                            evr_u = u_metrics["explained_variance_ratio"]
+                            cevr_u = u_metrics["cumulative_explained_variance"]
+                            fig_u = go.Figure()
+                            fig_u.add_trace(go.Bar(name="Per-Component", x=list(range(1, len(evr_u)+1)), y=evr_u, marker_color="#6366F1"))
+                            fig_u.add_trace(go.Scatter(name="Cumulative", x=list(range(1, len(cevr_u)+1)), y=cevr_u, mode="lines+markers", line=dict(color="#10B981")))
+                            fig_u.update_layout(title="PCA Explained Variance", template="plotly_dark", height=320)
+                            st.plotly_chart(fig_u, use_container_width=True)
+                        st.json({k: v for k, v in u_metrics.items() if not isinstance(v, list)}, expanded=False)
+                        if st.button("New Analysis", key="unsup_clear"):
+                            del st.session_state["unsup_exp_id"]
+                            st.rerun()
+                        break
+                    elif u_status == "FAILED":
+                        st.error(f"Failed: {d_u.get('error', 'Unknown')}")
+                        if st.button("Retry", key="unsup_retry"):
+                            del st.session_state["unsup_exp_id"]
+                            st.rerun()
+                        break
+                    else:
+                        _time_u.sleep(2)
+            except Exception:
+                _time_u.sleep(2)
+
+
+# --- Image Analysis ---
+elif page == "Image Analysis":
+    st.title("Image Analysis")
+    st.markdown("Upload a ZIP archive of images in class-folder structure for classification, clustering, or anomaly detection.")
+
+    with st.container():
+        img_file = st.file_uploader("Select .zip archive", type=["zip"], key="img_upload",
+                                    help="Structure: archive.zip/class_name/image.jpg")
+        if img_file:
+            st.success(f"Loaded '{img_file.name}' — {img_file.size / 1024**2:.2f} MB")
+            img_i1, img_i2 = st.columns(2)
+            with img_i1:
+                img_task = st.selectbox("Image Task", ["image_classification", "image_clustering", "image_anomaly_detection"],
+                                        key="img_task", format_func=lambda x: x.replace("_", " ").title())
+            with img_i2:
+                if img_task == "image_clustering":
+                    img_k = st.slider("Clusters", 2, 20, 5, key="img_k")
+                else:
+                    img_k = 5
+                if img_task == "image_anomaly_detection":
+                    img_cont = st.slider("Contamination", 0.01, 0.5, 0.05, 0.01, key="img_cont")
+                else:
+                    img_cont = 0.05
+                max_imgs = st.number_input("Max images", 10, 5000, 500, 50, key="img_max")
+
+            st.info("Requires: `pip install Pillow torch torchvision` (one-time install for image features)")
+
+            if st.button("Run Image Analysis", type="primary", use_container_width=True, key="img_run_btn"):
+                with st.spinner("Submitting image pipeline..."):
+                    img_file.seek(0)
+                    try:
+                        import requests as _req_img
+                        p_img = {"task": img_task, "n_clusters": img_k, "contamination": img_cont, "max_images": int(max_imgs)}
+                        f_img = {"file": (img_file.name, img_file.getvalue(), "application/zip")}
+                        r_img = _req_img.post(f"{api.base_url}/experiments/run/image", files=f_img,
+                                              params=p_img, headers=api._auth_headers(), timeout=60)
+                        if r_img.ok:
+                            st.session_state["img_exp_id"] = r_img.json()["experiment_id"]
+                            st.rerun()
+                        else:
+                            st.error(f"Error: {r_img.json().get('detail', r_img.text)}")
+                    except Exception as e:
+                        st.error(f"Request failed: {e}")
+
+    if "img_exp_id" in st.session_state:
+        img_exp_id = st.session_state["img_exp_id"]
+        st.markdown(f"---\n### Results: `{img_exp_id}`")
+        import requests as _req_img2, time as _time_img
+        for _ia in range(120):
+            try:
+                r_ia = _req_img2.get(f"{api.base_url}/experiments/image/{img_exp_id}", headers=api._auth_headers(), timeout=15)
+                if r_ia.ok:
+                    d_ia = r_ia.json()
+                    ia_status = d_ia.get("status")
+                    if ia_status == "COMPLETED":
+                        st.success("Image analysis complete!")
+                        ia_result = d_ia.get("result", {})
+                        ia_metrics = ia_result.get("metrics", {})
+                        ia_m1, ia_m2, ia_m3, ia_m4 = st.columns(4)
+                        if "accuracy" in ia_metrics: ia_m1.metric("Accuracy", f"{ia_metrics['accuracy']:.4f}")
+                        if "f1" in ia_metrics: ia_m2.metric("F1", f"{ia_metrics['f1']:.4f}")
+                        if "silhouette_score" in ia_metrics and ia_metrics["silhouette_score"]: ia_m1.metric("Silhouette", f"{ia_metrics['silhouette_score']:.4f}")
+                        if "anomaly_rate" in ia_metrics: ia_m1.metric("Anomaly Rate", f"{ia_metrics['anomaly_rate']:.2%}")
+                        st.json({k: v for k, v in ia_metrics.items() if not isinstance(v, (list, dict))}, expanded=False)
+                        if st.button("New Image Task", key="img_clear"):
+                            del st.session_state["img_exp_id"]
+                            st.rerun()
+                        break
+                    elif ia_status == "FAILED":
+                        err_ia = d_ia.get("error", "Unknown error")
+                        st.error(f"Failed: {err_ia}")
+                        if "torch" in str(err_ia).lower() or "Missing" in str(err_ia):
+                            st.code("pip install Pillow torch torchvision", language="bash")
+                        if st.button("Retry", key="img_retry"):
+                            del st.session_state["img_exp_id"]
+                            st.rerun()
+                        break
+                    else:
+                        _time_img.sleep(3)
+            except Exception:
+                _time_img.sleep(3)
+
+
 # --- Results ---
 elif page == "Results":
+
     st.title("Experiment Results & Governance")
     
     exps = api.get_experiments()
