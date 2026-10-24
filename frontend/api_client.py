@@ -1,10 +1,12 @@
 import os
 import requests
 import time
+import streamlit as st
 from typing import Dict, Any, List, Optional
 
 class APIClient:
     def __init__(self, base_url: str = None):
+<<<<<<< HEAD
         self.base_url = base_url or os.getenv("API_URL", "http://localhost:8000")
         self._token: Optional[str] = None  # JWT set after login
 
@@ -20,6 +22,17 @@ class APIClient:
         if self._token:
             return {"Authorization": f"Bearer {self._token}"}
         return {}
+=======
+        if base_url:
+            self.base_url = base_url.rstrip("/")
+        elif os.getenv("API_URL"):
+            self.base_url = os.getenv("API_URL").rstrip("/")
+        elif "API_URL" in st.secrets:
+            self.base_url = st.secrets["API_URL"].rstrip("/")
+        else:
+            self.base_url = "http://localhost:8000"
+
+>>>>>>> 796b41cb3b0875121c6c37f47ced37dbca9337d8
         
     def _get(self, endpoint: str) -> Optional[Any]:
         try:

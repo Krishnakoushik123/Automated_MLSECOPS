@@ -3,6 +3,8 @@
 > A research-grade **automated MLSecOps** system that extends a baseline MLOps pipeline with **security-by-design** and quantitatively compares **Traditional ML**, **MLOps**, and **MLSecOps** using formal Data Envelopment Analysis (DEA).
 
 ---
+Streamlit Frontend URL:
+https://krishnakoushik123-automated-mlsecops-frontendapp-lb406n.streamlit.app/
 
 ## Architecture
 
