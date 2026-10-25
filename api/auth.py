@@ -41,10 +41,13 @@ except ImportError as _e:  # noqa: F841
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 _AUTH_DB_PATH = _PROJECT_ROOT / "auth.db"
 
-# Secret key — read from env, fall back to a fixed dev-only key (warn loudly)
-_SECRET_KEY = os.getenv("AUTH_SECRET_KEY", "")
-if not _SECRET_KEY:
-    _SECRET_KEY = "mlsecops-dev-secret-key-CHANGE-IN-PRODUCTION-2024"
+# Secret key — read from JWT_SECRET_KEY environment variable
+_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "")
+if not _SECRET_KEY or not _SECRET_KEY.strip():
+    raise RuntimeError(
+        "JWT_SECRET_KEY environment variable is missing or empty. "
+        "A secure secret key must be configured."
+    )
 
 _ALGORITHM = "HS256"
 _ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("AUTH_TOKEN_EXPIRE_MINUTES", "480"))  # 8 hours
