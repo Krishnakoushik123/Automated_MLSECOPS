@@ -41,9 +41,13 @@ except ImportError as _e:  # noqa: F841
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 _AUTH_DB_PATH = _PROJECT_ROOT / "auth.db"
 
-_SECRET_KEY = os.getenv("AUTH_SECRET_KEY")
-if not _SECRET_KEY:
-    raise RuntimeError("AUTH_SECRET_KEY must be set")
+# Secret key — read from JWT_SECRET_KEY environment variable
+_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "")
+if not _SECRET_KEY or not _SECRET_KEY.strip():
+    raise RuntimeError(
+        "JWT_SECRET_KEY environment variable is missing or empty. "
+        "A secure secret key must be configured."
+    )
 
 _ALGORITHM = "HS256"
 _ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("AUTH_TOKEN_EXPIRE_MINUTES", "480"))  # 8 hours
