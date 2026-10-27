@@ -43,9 +43,15 @@ def _make_dummy_image_zip(n_samples_per_class: int = 10) -> bytes:
     return buf.getvalue()
 
 
+HAS_IMAGE_DEPS, MISSING_IMAGE_DEPS = check_image_dependencies()
+requires_image_deps = pytest.mark.skipif(
+    not HAS_IMAGE_DEPS,
+    reason=f"Optional image dependencies not installed: {MISSING_IMAGE_DEPS}",
+)
+
+
 def test_check_image_dependencies():
     ok, missing = check_image_dependencies()
-    # In this environment, Pillow, torch, torchvision are installed
     assert isinstance(ok, bool)
     assert isinstance(missing, list)
 
@@ -96,9 +102,27 @@ def test_run_image_pipeline_invalid_task():
     zip_bytes = _make_dummy_image_zip(2)
     result = run_image_pipeline(zip_bytes, task="unsupported_task")
     assert result["status"] == "error"
-    assert "Unknown image task" in result["error"]
+    if not HAS_IMAGE_DEPS:
+        assert "Missing image dependencies" in result["error"]
+    else:
+        assert "Unknown image task" in result["error"]
 
 
+def test_run_image_pipeline_missing_deps_handled(tmp_path):
+    """When dependencies are missing, run_image_pipeline returns an informative error dictionary."""
+    from unittest import mock
+    with mock.patch("src.image.pipeline.check_image_dependencies", return_value=(False, ["torch", "torchvision"])):
+        zip_bytes = _make_dummy_image_zip(2)
+        result = run_image_pipeline(
+            zip_bytes=zip_bytes,
+            task="image_clustering",
+            models_dir=tmp_path / "models",
+        )
+        assert result["status"] == "error"
+        assert "Missing image dependencies" in result["error"]
+
+
+@requires_image_deps
 def test_run_image_pipeline_clustering_success(tmp_path):
     zip_bytes = _make_dummy_image_zip(5)
     result = run_image_pipeline(
@@ -114,6 +138,7 @@ def test_run_image_pipeline_clustering_success(tmp_path):
     assert result["model_path"] is not None
 
 
+@requires_image_deps
 def test_run_image_pipeline_anomaly_detection_success(tmp_path):
     zip_bytes = _make_dummy_image_zip(5)
     result = run_image_pipeline(
