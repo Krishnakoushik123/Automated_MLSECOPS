@@ -49,12 +49,11 @@ except ImportError:
 
 _SECRET_KEY = os.getenv("AUTH_SECRET_KEY")
 if not _SECRET_KEY:
-    import warnings as _warnings
-    _SECRET_KEY = "insecure-dev-fallback-change-me"
-    _warnings.warn(
-        "AUTH_SECRET_KEY is not set — using an insecure fallback. "
-        "Set AUTH_SECRET_KEY in .env or environment before deploying to production.",
-        stacklevel=1,
+    raise RuntimeError(
+        "AUTH_SECRET_KEY environment variable is not set.\n"
+        "Generate a strong secret and set it before starting the service:\n"
+        "  python -c \"import secrets; print(secrets.token_hex(32))\"\n"
+        "Then add AUTH_SECRET_KEY=<value> to your .env file or environment."
     )
 
 _ALGORITHM = "HS256"

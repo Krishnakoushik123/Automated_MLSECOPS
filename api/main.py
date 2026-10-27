@@ -125,6 +125,29 @@ def load_artifacts():
         _STATE["model"] = joblib.load(model_path)
         logger.info("Loaded inference model from %s", model_path)
 
+    # Validate pipeline ↔ model feature consistency
+    _pipeline = _STATE["feature_pipeline"]
+    _model = _STATE["model"]
+    if _pipeline is not None and _model is not None:
+        try:
+            pipeline_out_features = getattr(_pipeline, "n_features_in_", None)
+            model_in_features = getattr(_model, "n_features_in_", None)
+            if (
+                pipeline_out_features is not None
+                and model_in_features is not None
+                and pipeline_out_features != model_in_features
+            ):
+                logger.warning(
+                    "Artifact mismatch: feature_pipeline expects %d input features but "
+                    "model expects %d. Deactivating model — API will use heuristic fallback. "
+                    "Retrain to regenerate consistent artifacts.",
+                    pipeline_out_features,
+                    model_in_features,
+                )
+                _STATE["model"] = None
+        except Exception as _compat_exc:
+            logger.warning("Could not validate artifact compatibility: %s", _compat_exc)
+
     # Initialize AnomalyDetector and DriftDetector using reference training data
     train_path = data_dir / "train.parquet"
     X_train_npy = data_dir / "X_train.npy"

@@ -9,6 +9,8 @@ on:
 env:
   PYTHON_VERSION: "3.11"
   PYTHONPATH: "."
+  # CI-only JWT secret — not used in production
+  AUTH_SECRET_KEY: "ci-test-secret-not-for-production-use-change-before-deploy"
 
 jobs:
   test:

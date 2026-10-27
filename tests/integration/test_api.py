@@ -9,6 +9,7 @@ Integration tests for FastAPI inference & security API endpoints:
 """
 
 import pytest
+import numpy as np
 from fastapi.testclient import TestClient
 
 from api.main import app
@@ -40,15 +41,32 @@ class TestAPIEndpoints:
         assert "overall_status" in data
 
     def test_predict_endpoint(self):
-        payload = {
-            "features": [[0.1, -0.2, 0.3, 0.4, -0.5, 0.6, 0.7, -0.8, 0.9, 0.0,
-                          0.1, -0.2, 0.3, 0.4, -0.5, 0.6, 0.7, -0.8, 0.9, 0.0]]
-        }
+        """Predict endpoint must accept a valid feature vector and return 200.
+
+        Reads the loaded pipeline's feature count dynamically so the test is
+        resilient to artifact changes (unit tests may regenerate model files
+        with different feature dimensions between runs).
+        """
+        from api.main import _STATE
+
+        # Determine input feature count from the loaded pipeline
+        pipeline = _STATE.get("feature_pipeline")
+        if pipeline is not None and hasattr(pipeline, "n_features_in_"):
+            n_features = pipeline.n_features_in_
+        else:
+            n_features = 8  # generic fallback
+
+        feature_vector = [float(i % 3 - 1) for i in range(n_features)]
+        payload = {"features": [feature_vector]}
         response = client.post("/predict", json=payload)
-        assert response.status_code == 200
+        assert response.status_code == 200, (
+            f"Predict endpoint returned {response.status_code}: {response.text}"
+        )
         data = response.json()
         assert "predictions" in data
         assert "latency_ms" in data
+        assert isinstance(data["predictions"], list)
+        assert len(data["predictions"]) >= 1
 
     def test_unsupervised_experiment_invalid_algo(self):
         csv_content = "f1,f2,f3\n1.0,2.0,3.0\n4.0,5.0,6.0\n7.0,8.0,9.0"

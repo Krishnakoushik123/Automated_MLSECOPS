@@ -9,6 +9,8 @@ on:
 env:
   PYTHON_VERSION: "3.11"
   PYTHONPATH: "."
+  # CI-only JWT secret — not used in production; overridden by repository secret in real deploys
+  AUTH_SECRET_KEY: "ci-test-secret-not-for-production-use-change-before-deploy"
 
 jobs:
   security-and-lint:
@@ -31,6 +33,7 @@ jobs:
 
       - name: Static Security Scan (Bandit)
         run: |
+          # Fails on any finding (exit non-zero). Source must be clean.
           bandit -r src/ api/ -f txt
 
       - name: Dependency Vulnerability Audit (pip-audit)

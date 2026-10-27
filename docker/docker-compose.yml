@@ -10,7 +10,7 @@ services:
       - "8000:8000"
     environment:
       - MLSECOPS_PROJECT__LOG_LEVEL=INFO
-      - AUTH_SECRET_KEY=${AUTH_SECRET_KEY:-change-me-in-production}
+      - AUTH_SECRET_KEY=${AUTH_SECRET_KEY:?AUTH_SECRET_KEY must be set in .env or environment}
       - AUTH_TOKEN_EXPIRE_MINUTES=${AUTH_TOKEN_EXPIRE_MINUTES:-480}
     restart: unless-stopped
     healthcheck:
