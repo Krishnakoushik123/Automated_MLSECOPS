@@ -61,7 +61,18 @@ jobs:
 
       - name: Run Unit & Integration Tests
         run: |
-          python -m pytest tests/unit tests/integration -v --tb=short
+          mkdir -p results/coverage
+          python -m pytest tests/unit tests/integration -v --tb=short 2>&1 | tee pytest_ci_output.txt
+
+      - name: Publish Test Summary
+        if: always()
+        run: |
+          if [ -f pytest_ci_output.txt ]; then
+            echo "### Unit & Integration Tests Output" >> $GITHUB_STEP_SUMMARY
+            echo '```text' >> $GITHUB_STEP_SUMMARY
+            tail -n 120 pytest_ci_output.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Upload coverage report
         if: always()

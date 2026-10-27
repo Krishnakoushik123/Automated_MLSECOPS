@@ -25,10 +25,26 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install dependencies
-        run: pip install --no-cache-dir -r requirements.txt && pip install --no-cache-dir psutil && pip install -e .
+        run: |
+          python -m pip install --upgrade pip
+          pip install --no-cache-dir -r requirements.txt
+          pip install --no-cache-dir psutil
+          pip install -e .
+          mkdir -p results/coverage
 
       - name: Run unit tests
-        run: python -m pytest tests/unit/ -v --tb=short
+        run: |
+          python -m pytest tests/unit/ -v --tb=short 2>&1 | tee pytest_output.txt
+
+      - name: Publish Test Summary
+        if: always()
+        run: |
+          if [ -f pytest_output.txt ]; then
+            echo "### Unit Tests Output" >> $GITHUB_STEP_SUMMARY
+            echo '```text' >> $GITHUB_STEP_SUMMARY
+            tail -n 120 pytest_output.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
 
   pipeline:
     name: Phase 1 Pipeline Smoke Test
