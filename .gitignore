@@ -1,0 +1,78 @@
+﻿# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Python caches and environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+venv/
+.venv/
+env/
+
+# Python build artifacts
+build/
+dist/
+*.egg-info/
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# MLflow and generated experiment artifacts
+mlruns/
+mlartifacts/
+
+# Logs and generated security reports
+*.log
+bandit-report.txt
+
+# Editor and operating system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Temporary workspace
+scratch/
+
+# Keep placeholder files when needed
+!data/.gitkeep
+!models/.gitkeep
+!results/.gitkeep
+
+# Generated processed dataset splits
+data/processed/X_test.npy
+data/processed/X_val.npy
+data/processed/y_test.npy
+data/processed/y_train.npy
+data/processed/y_val.npy
+
+# Duplicate local dataset
+data/raw/raw_dataset.parquet
+
+# Generated experiment and test outputs
+results/exp_*/
+results/experiments/
+results/incidents/
+results/test_classification/
+results/test_regression/
+
+
+# Duplicate local dataset
+data/raw/raw_dataset.parquet
+
+# Generated experiment and test outputs
+results/exp_*/
+results/experiments/
+results/incidents/
+results/test_classification/
+results/test_regression/
